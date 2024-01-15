@@ -24,7 +24,8 @@ use crate::{Error, PythonVersion};
 /// ```
 #[cfg(windows)]
 static PY_LIST_PATHS: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(r"(?m)^ -(?:V:)?(\d).(\d+)-?(?:arm)?(?:\d*)\s*\*?\s*(.*)?$").unwrap()
+    // Without the `R` flag, paths have trailing \r
+    regex::Regex::new(r"(?mR)^ -(?:V:)?(\d).(\d+)-?(?:arm)?(?:\d*)\s*\*?\s*(.*)$").unwrap()
 });
 
 /// A Python executable and its associated platform markers.
@@ -34,6 +35,7 @@ pub struct Interpreter {
     pub(crate) markers: MarkerEnvironment,
     pub(crate) base_exec_prefix: PathBuf,
     pub(crate) base_prefix: PathBuf,
+    pub(crate) stdlib: PathBuf,
     pub(crate) sys_executable: PathBuf,
     tags: OnceCell<Tags>,
 }
@@ -59,6 +61,7 @@ impl Interpreter {
             markers: info.markers,
             base_exec_prefix: info.base_exec_prefix,
             base_prefix: info.base_prefix,
+            stdlib: info.stdlib,
             sys_executable: info.sys_executable,
             tags: OnceCell::new(),
         })
@@ -71,12 +74,14 @@ impl Interpreter {
         base_exec_prefix: PathBuf,
         base_prefix: PathBuf,
         sys_executable: PathBuf,
+        stdlib: PathBuf,
     ) -> Self {
         Self {
             platform: PythonPlatform(platform),
             markers,
             base_exec_prefix,
             base_prefix,
+            stdlib,
             sys_executable,
             tags: OnceCell::new(),
         }
@@ -89,6 +94,61 @@ impl Interpreter {
             base_prefix,
             ..self
         }
+    }
+
+    #[cfg(windows)]
+    fn installed_pythons() -> Result<Vec<(u8, u8, PathBuf)>, Error> {
+        // This command takes 8ms on my machine.
+        // TODO(konstin): Implement https://peps.python.org/pep-0514/ to read python installations from the
+        // registry instead.
+        let output = info_span!("py_list_paths")
+            .in_scope(|| Command::new("py").arg("--list-paths").output())
+            .map_err(|err| Error::PyList(err))?;
+
+        // There shouldn't be any output on stderr.
+        if !output.status.success() || !output.stderr.is_empty() {
+            return Err(Error::PythonSubcommandOutput {
+                message: format!(
+                    "Running `py --list-paths` failed with status {}",
+                    output.status
+                ),
+                stdout: String::from_utf8_lossy(&output.stdout).trim().to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        // Find the first python of the version we want in the list
+        let stdout = String::from_utf8(output.stdout.clone()).map_err(|err| {
+            Error::PythonSubcommandOutput {
+                message: format!(
+                    "Running `py --list-paths` stdout isn't UTF-8 encoded: {}",
+                    err
+                ),
+                stdout: String::from_utf8_lossy(&output.stdout).trim().to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            }
+        })?;
+        Ok(PY_LIST_PATHS
+            .captures_iter(&stdout)
+            .filter_map(|captures| {
+                let (_, [major, minor, path]) = captures.extract();
+                Some((
+                    major.parse::<u8>().ok()?,
+                    minor.parse::<u8>().ok()?,
+                    PathBuf::from(path),
+                ))
+            })
+            .collect())
+    }
+
+    #[cfg(windows)]
+    pub fn find_python(python_version: &PythonVersion) -> Result<Option<PathBuf>, Error> {
+        Ok(Self::installed_pythons()?
+            .into_iter()
+            .find(|(major, minor, _path)| {
+                *major == python_version.major() && *minor == python_version.minor()
+            })
+            .map(|(_, _, path)| path))
     }
 
     /// Detect the python interpreter to use.
@@ -137,7 +197,9 @@ impl Interpreter {
         #[cfg(windows)]
         {
             if let Some(python_version) = python_version {
-                compile_error!("Implement me")
+                if let Some(path) = Self::find_python(python_version)? {
+                    return Ok(Interpreter::query(&path, platform.0, cache)?);
+                }
             }
 
             let executable = which::which("python.exe")
@@ -225,6 +287,11 @@ impl Interpreter {
     pub fn base_prefix(&self) -> &Path {
         &self.base_prefix
     }
+
+    /// `sysconfig.get_path("stdlib")`
+    pub fn stdlib(&self) -> &Path {
+        &self.stdlib
+    }
     pub fn sys_executable(&self) -> &Path {
         &self.sys_executable
     }
@@ -235,6 +302,7 @@ pub(crate) struct InterpreterQueryResult {
     pub(crate) markers: MarkerEnvironment,
     pub(crate) base_exec_prefix: PathBuf,
     pub(crate) base_prefix: PathBuf,
+    pub(crate) stdlib: PathBuf,
     pub(crate) sys_executable: PathBuf,
 }
 

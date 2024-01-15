@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
+use std::path::PathBuf;
+
 use assert_cmd::Command;
 use assert_fs::assert::PathAssert;
 use assert_fs::fixture::PathChild;
 use assert_fs::TempDir;
 use insta_cmd::get_cargo_bin;
-use std::path::PathBuf;
+
+use puffin_interpreter::Interpreter;
 
 pub(crate) const BIN_NAME: &str = "puffin";
 
@@ -23,6 +26,19 @@ pub(crate) fn create_venv_py312(temp_dir: &TempDir, cache_dir: &TempDir) -> Path
 /// Create a virtual environment named `.venv` in a temporary directory with the given
 /// Python version. Expected format for `python` is "python<version>".
 pub(crate) fn create_venv(temp_dir: &TempDir, cache_dir: &TempDir, python: &str) -> PathBuf {
+    #[cfg(windows)]
+    let python = {
+        use std::str::FromStr;
+
+        // TODO(konstin): Change caller to pass in the minor version
+        let python_version =
+            puffin_interpreter::PythonVersion::from_str(&python.replace("python", ""))
+                .expect("Test is using invalid python version");
+        Interpreter::find_python(&python_version)
+            .expect("`py --list-paths` failed")
+            .expect("Python version is not installed")
+    };
+
     let venv = temp_dir.child(".venv");
     Command::new(get_cargo_bin(BIN_NAME))
         .arg("venv")

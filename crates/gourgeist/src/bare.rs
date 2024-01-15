@@ -125,8 +125,25 @@ pub fn create_bare_venv(location: &Utf8Path, interpreter: &Interpreter) -> io::R
             )),
         )?;
     }
+    #[cfg(windows)]
+    {
+        // https://github.com/python/cpython/blob/d457345bbc6414db0443819290b04a9a4333313d/Lib/venv/__init__.py#L261-L267
+        // https://github.com/pypa/virtualenv/blob/d9fdf48d69f0d0ca56140cf0381edbb5d6fe09f5/src/virtualenv/create/via_global_ref/builtin/cpython/cpython3.py#L78-L83
+        let shim = interpreter
+            .stdlib()
+            .join("venv")
+            .join("scripts")
+            .join("nt")
+            .join("python.exe");
+        fs_err::copy(shim, bin_dir.join("python.exe"))?;
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        compile_error!("only unix (like mac and linux) and windows are supported")
+    }
 
     // Add all the activate scripts for different shells
+    // TODO(konstin): That's unix!
     for (name, template) in ACTIVATE_TEMPLATES {
         let activator = template
             .replace("{{ VIRTUAL_ENV_DIR }}", location.as_str())
@@ -176,14 +193,27 @@ pub fn create_bare_venv(location: &Utf8Path, interpreter: &Interpreter) -> io::R
     drop(pyvenv_cfg);
 
     // TODO: This is different on windows
-    let site_packages = location
-        .join("lib")
-        .join(format!(
-            "python{}.{}",
-            interpreter.python_major(),
-            interpreter.python_minor(),
-        ))
-        .join("site-packages");
+    let site_packages = {
+        #[cfg(unix)]
+        {
+            location
+                .join("lib")
+                .join(format!(
+                    "python{}.{}",
+                    interpreter.python_major(),
+                    interpreter.python_minor(),
+                ))
+                .join("site-packages")
+        }
+        #[cfg(windows)]
+        {
+            location.join("Lib").join("site-packages")
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            compile_error!("only unix (like mac and linux) and windows are supported")
+        }
+    };
     fs::create_dir_all(&site_packages)?;
     // Install _virtualenv.py patch.
     // Frankly no idea what that does, i just copied it from virtualenv knowing that
