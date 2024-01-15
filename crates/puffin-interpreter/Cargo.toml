@@ -31,6 +31,9 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 which = { workspace = true}
 
+[target.'cfg(windows)'.dependencies]
+regex = { workspace = true}
+
 [dev-dependencies]
 indoc = { version = "2.0.4" }
 tempfile = { version = "3.9.0" }

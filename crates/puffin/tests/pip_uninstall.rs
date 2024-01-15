@@ -12,14 +12,27 @@ use crate::common::create_venv_py312;
 
 mod common;
 
+const INSTA_FILTERS2: &[(&str, &str)] = &[
+    (r"puffin.exe", "puffin"),
+    (
+        // Windows
+        "The system cannot find the file specified.",
+        // Unix
+        "No such file or directory",
+    ),
+];
+
 #[test]
 fn no_arguments() -> Result<()> {
     let temp_dir = assert_fs::TempDir::new()?;
 
-    assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
-        .arg("pip")
+    insta::with_settings!({
+        filters => INSTA_FILTERS2.to_vec()
+    }, {
+        assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
+            .arg("pip")
         .arg("uninstall")
-        .current_dir(&temp_dir), @r###"
+            .current_dir(&temp_dir), @r###"
     success: false
     exit_code: 2
     ----- stdout -----
@@ -31,7 +44,8 @@ fn no_arguments() -> Result<()> {
     Usage: puffin pip uninstall <PACKAGE|--requirement <REQUIREMENT>|--editable <EDITABLE>>
 
     For more information, try '--help'.
-    "###);
+    "###)
+    });
 
     Ok(())
 }
@@ -63,12 +77,15 @@ fn invalid_requirement() -> Result<()> {
 fn missing_requirements_txt() -> Result<()> {
     let temp_dir = assert_fs::TempDir::new()?;
 
-    assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
-        .arg("pip")
+    insta::with_settings!({
+        filters => INSTA_FILTERS2.to_vec()
+    }, {
+        assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
+            .arg("pip")
         .arg("uninstall")
-        .arg("-r")
-        .arg("requirements.txt")
-        .current_dir(&temp_dir), @r###"
+            .arg("-r")
+            .arg("requirements.txt")
+            .current_dir(&temp_dir), @r###"
     success: false
     exit_code: 2
     ----- stdout -----
@@ -76,7 +93,8 @@ fn missing_requirements_txt() -> Result<()> {
     ----- stderr -----
     error: failed to open file `requirements.txt`
       Caused by: No such file or directory (os error 2)
-    "###);
+    "###)
+    });
 
     Ok(())
 }
@@ -112,12 +130,15 @@ fn invalid_requirements_txt_requirement() -> Result<()> {
 fn missing_pyproject_toml() -> Result<()> {
     let temp_dir = assert_fs::TempDir::new()?;
 
-    assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
-        .arg("pip")
+    insta::with_settings!({
+        filters => INSTA_FILTERS2.to_vec()
+    }, {
+        assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
+            .arg("pip")
         .arg("uninstall")
-        .arg("-r")
-        .arg("pyproject.toml")
-        .current_dir(&temp_dir), @r###"
+            .arg("-r")
+            .arg("pyproject.toml")
+            .current_dir(&temp_dir), @r###"
     success: false
     exit_code: 2
     ----- stdout -----
@@ -125,7 +146,8 @@ fn missing_pyproject_toml() -> Result<()> {
     ----- stderr -----
     error: failed to open file `pyproject.toml`
       Caused by: No such file or directory (os error 2)
-    "###);
+    "###)
+    });
 
     Ok(())
 }

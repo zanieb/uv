@@ -37,6 +37,9 @@ pub enum Error {
         #[source]
         err: io::Error,
     },
+    #[cfg(windows)]
+    #[error("Failed to run `py --list-paths` to find Python {0}")]
+    PyList(PythonVersion, #[source] io::Error),
     #[error("{message}:\n--- stdout:\n{stdout}\n--- stderr:\n{stderr}\n---")]
     PythonSubcommandOutput {
         message: String,

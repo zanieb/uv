@@ -50,7 +50,7 @@ enum VenvError {
     #[diagnostic(code(puffin::venv::python_not_found))]
     PythonNotFound,
 
-    #[error("Unable to find a Python interpreter {0}")]
+    #[error(r#"Unable to find a Python interpreter at "{0}""#)]
     #[diagnostic(code(puffin::venv::python_not_found))]
     UserPythonNotFound(PathBuf),
 

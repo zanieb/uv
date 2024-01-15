@@ -731,6 +731,7 @@ impl MarkerExpression {
     /// # use std::str::FromStr;
     /// # use pep508_rs::{MarkerTree, Pep508Error};
     /// # use pep440_rs::Version;
+    /// # use puffin_normalize::ExtraName;
     ///
     /// # fn main() -> Result<(), Pep508Error> {
     /// use puffin_normalize::ExtraName;

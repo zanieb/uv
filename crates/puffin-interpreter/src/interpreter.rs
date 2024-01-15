@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use fs_err as fs;
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
+use tracing::{debug, info_span, warn};
 
 use cache_key::digest;
 use pep440_rs::Version;
@@ -17,6 +17,15 @@ use puffin_fs::write_atomic_sync;
 use crate::python_platform::PythonPlatform;
 use crate::virtual_env::detect_virtual_env;
 use crate::{Error, PythonVersion};
+
+/// ```text
+/// -V:3.12          C:\Users\Ferris\AppData\Local\Programs\Python\Python312\python.exe
+/// -V:3.8           C:\Users\Ferris\AppData\Local\Programs\Python\Python38\python.exe
+/// ```
+#[cfg(windows)]
+static PY_LIST_PATHS: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(r"(?m)^ -(?:V:)?(\d).(\d+)-?(?:arm)?(?:\d*)\s*\*?\s*(.*)?$").unwrap()
+});
 
 /// A Python executable and its associated platform markers.
 #[derive(Debug, Clone)]
@@ -127,8 +136,8 @@ impl Interpreter {
 
         #[cfg(windows)]
         {
-            if let Some(_python_version) = python_version {
-                unimplemented!("Implement me")
+            if let Some(python_version) = python_version {
+                compile_error!("Implement me")
             }
 
             let executable = which::which("python.exe")
@@ -331,17 +340,17 @@ impl InterpreterQueryResult {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use fs_err as fs;
-    use indoc::{formatdoc, indoc};
-    use tempfile::tempdir;
-
-    use pep440_rs::Version;
-    use platform_host::Platform;
-    use puffin_cache::Cache;
-
-    use crate::Interpreter;
+    #[cfg(unix)]
+    use {
+        crate::Interpreter,
+        fs_err as fs,
+        indoc::{formatdoc, indoc},
+        pep440_rs::Version,
+        platform_host::Platform,
+        puffin_cache::Cache,
+        std::str::FromStr,
+        tempfile::tempdir,
+    };
 
     #[test]
     #[cfg(unix)]
