@@ -66,7 +66,6 @@ tracing-durations-export = { workspace = true, features = ["plot"], optional = t
 tracing-subscriber = { workspace = true }
 tracing-tree = { workspace = true }
 url = { workspace = true }
-waitmap = { workspace = true }
 which = { workspace = true }
 dunce = "1.0.4"
 
