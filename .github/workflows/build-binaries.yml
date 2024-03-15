@@ -306,8 +306,6 @@ jobs:
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
             ${{ env.MODULE_NAME }} --help
       - name: "Upload wheels"
-        # Skip for `arm`, which is not supported by PyPI.
-        if: ${{ matrix.platform.arch != 'arm' }}
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.platform.target }}
