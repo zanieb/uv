@@ -568,6 +568,40 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
             }
         }
 
+        // We encounter cases (botocore) where the above doesn't work: Say we previously selected
+        // a==x.y.z, which depends on b==x.y.z. a==x.y.z is incompatible, but we don't know that
+        // yet. We just select b==x.y.z and want to prefetch, since for all versions of a we try,
+        // we have to wait for the matching version of b. The selector gives us only one version of
+        // b, so we're now here 0 versions prefetched. Instead, we guess that the next version of b
+        // will be x.y.(z-1) and so forth.
+        if counter > 0 {
+            let remaining_range = Range::strictly_lower_than(&last_version);
+
+            // TODO(konstin): comment
+            for (pre_version, maybe_dist) in version_map
+                .iter()
+                .rev()
+                .filter(|(version, _)| remaining_range.contains(version))
+                .take(counter)
+            {
+                let Some(dist) = maybe_dist.prioritized_dist() else {
+                    break;
+                };
+                let candidate = Candidate::new(package_name, pre_version, dist);
+
+                let CandidateDist::Compatible(dist) = candidate.dist() else {
+                    break;
+                };
+                let dist = dist.for_resolution();
+
+                // Emit a request to fetch the metadata for this version.
+                trace!("Prefetching {}", dist);
+                if self.index.distributions.register(candidate.package_id()) {
+                    request_sink.send(Request::Dist(dist.clone())).await?;
+                }
+            }
+        }
+
         debug!(
             "Prefetching {} {} versions",
             total_prefetch - counter,
