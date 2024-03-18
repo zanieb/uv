@@ -1,6 +1,7 @@
 //! Given a set of requirements, find a set of compatible packages.
 
 use std::borrow::Cow;
+use std::cmp::min;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ use pubgrub::error::PubGrubError;
 use pubgrub::range::Range;
 use pubgrub::solver::{Incompatibility, State};
 use rustc_hash::{FxHashMap, FxHashSet};
+use tokio::sync::mpsc::Sender;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info_span, instrument, trace, Instrument};
 use url::Url;
@@ -25,14 +27,14 @@ use pep440_rs::{Version, MIN_VERSION};
 use pep508_rs::{MarkerEnvironment, Requirement};
 use platform_tags::{IncompatibleTag, Tags};
 use pypi_types::{Metadata23, Yanked};
-pub(crate) use urls::Urls;
+use urls::Urls;
 use uv_client::{FlatIndex, RegistryClient};
 use uv_distribution::DistributionDatabase;
 use uv_interpreter::Interpreter;
 use uv_normalize::PackageName;
 use uv_traits::BuildContext;
 
-use crate::candidate_selector::{CandidateDist, CandidateSelector};
+use crate::candidate_selector::{Candidate, CandidateDist, CandidateSelector};
 use crate::constraints::Constraints;
 use crate::editables::Editables;
 use crate::error::ResolveError;
@@ -52,7 +54,6 @@ pub use crate::resolver::provider::{
 };
 use crate::resolver::reporter::Facade;
 pub use crate::resolver::reporter::{BuildId, Reporter};
-
 use crate::yanks::AllowedYanks;
 use crate::{DependencyMode, Options};
 pub(crate) use locals::Locals;
@@ -61,7 +62,7 @@ mod index;
 mod locals;
 mod provider;
 mod reporter;
-mod urls;
+pub(crate) mod urls;
 
 /// The package version is unavailable and cannot be used
 /// Unlike [`PackageUnavailable`] this applies to a single version of the package
@@ -194,13 +195,13 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
         // A channel to fetch package metadata (e.g., given `flask`, fetch all versions) and version
         // metadata (e.g., given `flask==1.0.0`, fetch the metadata for that version).
         // Channel size is set to the same size as the task buffer for simplicity.
-        let (request_sink, request_stream) = tokio::sync::mpsc::channel(50);
+        let (request_sink, request_stream) = tokio::sync::mpsc::channel(300);
 
         // Run the fetcher.
         let requests_fut = self.fetch(request_stream).fuse();
 
         // Run the solver.
-        let resolve_fut = self.solve(request_sink).fuse();
+        let resolve_fut = self.solve(request_sink).boxed().fuse();
 
         // Wait for both to complete.
         match tokio::try_join!(requests_fut, resolve_fut) {
@@ -236,6 +237,8 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
         request_sink: tokio::sync::mpsc::Sender<Request>,
     ) -> Result<ResolutionGraph, ResolveError> {
         let root = PubGrubPackage::Root(self.project.clone());
+        let mut tried_versions = FxHashMap::default();
+        let mut last_prefetch = FxHashMap::default();
 
         // Keep track of the packages for which we've requested metadata.
         let mut pins = FilePins::default();
@@ -283,6 +286,8 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
                 );
             };
             next = highest_priority_pkg;
+
+            *tried_versions.entry(next.clone()).or_default() += 1;
 
             let term_intersection = state
                 .partial_solution
@@ -425,6 +430,16 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
                 }
             };
 
+            self.prefetch_batches(
+                &next,
+                &version,
+                term_intersection.unwrap_positive(),
+                &mut tried_versions,
+                &mut last_prefetch,
+                &request_sink,
+            )
+            .await?;
+
             self.on_progress(&next, &version);
 
             if added_dependencies
@@ -487,6 +502,80 @@ impl<'a, Provider: ResolverProvider> Resolver<'a, Provider> {
                 state.partial_solution.add_decision(next.clone(), version);
             }
         }
+    }
+
+    async fn prefetch_batches(
+        &self,
+        next: &PubGrubPackage,
+        version: &Version,
+        current_range: &Range<Version>,
+        tried_versions: &mut FxHashMap<PubGrubPackage, usize>,
+        last_prefetch: &mut FxHashMap<PubGrubPackage, usize>,
+        request_sink: &Sender<Request>,
+    ) -> Result<(), ResolveError> {
+        let PubGrubPackage::Package(package_name, _, _) = &next else {
+            return Ok(());
+        };
+
+        // Figure out if we should prefetch.
+        let num_tried = tried_versions.get(next).copied().unwrap_or_default();
+        let previous_prefetch = last_prefetch.get(next).copied().unwrap_or_default();
+        // After 5, 10, 20, 40 tried versions prefetch that many versions, then every
+        // 20 versions prefetch 50 versions.
+        // We can skip versions early so we have to `num_tried - previous_prefetch` with greater
+        // equal not equal.
+        let do_prefetch = (num_tried >= 5 && previous_prefetch < 5)
+            || (num_tried >= 10 && previous_prefetch < 10)
+            || (num_tried >= 20 && previous_prefetch < 20)
+            || (num_tried >= 20 && num_tried - previous_prefetch >= 20);
+        if !do_prefetch {
+            return Ok(());
+        }
+        let total_prefetch = min(num_tried, 50);
+        let mut counter = total_prefetch;
+
+        // This is immediate, we already fetched the version map.
+        let versions_response = self
+            .index
+            .packages
+            .wait(package_name)
+            .await
+            .ok_or(ResolveError::Unregistered)?;
+
+        let VersionsResponse::Found(ref version_map) = *versions_response else {
+            return Ok(());
+        };
+
+        let mut last_version = version.clone();
+        let mut range = current_range.clone();
+        while counter > 0 {
+            let Some(candidate) = self.selector.select(package_name, &range, version_map) else {
+                break;
+            };
+            range = range.intersection(&Range::singleton(candidate.version().clone()).complement());
+            counter -= 1;
+            last_version = candidate.version().clone();
+
+            let CandidateDist::Compatible(dist) = candidate.dist() else {
+                break;
+            };
+            let dist = dist.for_resolution();
+
+            // Emit a request to fetch the metadata for this version.
+            trace!("Prefetching {}", dist);
+            if self.index.distributions.register(candidate.package_id()) {
+                request_sink.send(Request::Dist(dist.clone())).await?;
+            }
+        }
+
+        debug!(
+            "Prefetching {} {} versions",
+            total_prefetch - counter,
+            package_name
+        );
+
+        last_prefetch.insert(next.clone(), num_tried);
+        Ok(())
     }
 
     /// Visit a [`PubGrubPackage`] prior to selection. This should be called on a [`PubGrubPackage`]

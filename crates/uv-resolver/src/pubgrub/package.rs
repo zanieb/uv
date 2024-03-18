@@ -3,7 +3,7 @@ use derivative::Derivative;
 use pep508_rs::VerbatimUrl;
 use uv_normalize::{ExtraName, PackageName};
 
-use crate::resolver::Urls;
+use crate::resolver::urls::Urls;
 
 /// A PubGrub-compatible wrapper around a "Python package", with two notable characteristics:
 ///

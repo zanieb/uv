@@ -11,7 +11,8 @@ use crate::constraints::Constraints;
 use crate::overrides::Overrides;
 use crate::pubgrub::specifier::PubGrubSpecifier;
 use crate::pubgrub::PubGrubPackage;
-use crate::resolver::{Locals, Urls};
+use crate::resolver::urls::Urls;
+use crate::resolver::Locals;
 use crate::ResolveError;
 
 #[derive(Debug)]
