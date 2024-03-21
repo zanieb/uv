@@ -39,7 +39,6 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use async_recursion::async_recursion;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use unscanny::{Pattern, Scanner};
@@ -398,7 +397,6 @@ impl RequirementsTxt {
     /// the current working directory. However, relative paths to sub-files (e.g., `-r ../requirements.txt`)
     /// are resolved against the directory of the containing `requirements.txt` file, to match
     /// `pip`'s behavior.
-    #[async_recursion]
     pub async fn parse_inner(
         content: &str,
         working_dir: &Path,
@@ -422,13 +420,14 @@ impl RequirementsTxt {
                         } else {
                             requirements_dir.join(filename.as_ref())
                         };
-                    let sub_requirements = Self::parse(&sub_file, working_dir, connectivity)
-                        .await
-                        .map_err(|err| RequirementsTxtParserError::Subfile {
-                            source: Box::new(err),
-                            start,
-                            end,
-                        })?;
+                    let sub_requirements =
+                        Box::pin(Self::parse(&sub_file, working_dir, connectivity))
+                            .await
+                            .map_err(|err| RequirementsTxtParserError::Subfile {
+                                source: Box::new(err),
+                                start,
+                                end,
+                            })?;
 
                     // Disallow conflicting `--index-url` in nested `requirements` files.
                     if sub_requirements.index_url.is_some()
@@ -460,13 +459,14 @@ impl RequirementsTxt {
                         } else {
                             requirements_dir.join(filename.as_ref())
                         };
-                    let sub_constraints = Self::parse(&sub_file, working_dir, connectivity)
-                        .await
-                        .map_err(|err| RequirementsTxtParserError::Subfile {
-                        source: Box::new(err),
-                        start,
-                        end,
-                    })?;
+                    let sub_constraints =
+                        Box::pin(Self::parse(&sub_file, working_dir, connectivity))
+                            .await
+                            .map_err(|err| RequirementsTxtParserError::Subfile {
+                                source: Box::new(err),
+                                start,
+                                end,
+                            })?;
                     // Treat any nested requirements or constraints as constraints. This differs
                     // from `pip`, which seems to treat `-r` requirements in constraints files as
                     // _requirements_, but we don't want to support that.
