@@ -635,6 +635,7 @@ async fn install(
         local,
         remote,
         reinstalls,
+        installed: _,
         extraneous: _,
     } = plan;
 
@@ -659,7 +660,7 @@ async fn install(
         .iter()
         .map(|dist| {
             resolution
-                .get(&dist.name)
+                .get_remote(&dist.name)
                 .cloned()
                 .expect("Resolution should contain all packages")
         })
@@ -798,6 +799,7 @@ async fn install(
             local,
             remote,
             reinstalls,
+            installed: _,
             extraneous: _,
         } = plan;
 
@@ -823,7 +825,7 @@ async fn install(
             .iter()
             .map(|dist| {
                 resolution
-                    .get(&dist.name)
+                    .get_remote(&dist.name)
                     .cloned()
                     .expect("Resolution should contain all packages")
             })

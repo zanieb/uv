@@ -189,6 +189,7 @@ impl<'a> BuildContext for BuildDispatch<'a> {
             let Plan {
                 local,
                 remote,
+                installed: _,
                 reinstalls,
                 extraneous: _,
             } = Planner::with_requirements(&resolution.requirements()).build(
@@ -212,7 +213,7 @@ impl<'a> BuildContext for BuildDispatch<'a> {
                 .iter()
                 .map(|dist| {
                     resolution
-                        .get(&dist.name)
+                        .get_remote(&dist.name)
                         .cloned()
                         .expect("Resolution should contain all packages")
                 })

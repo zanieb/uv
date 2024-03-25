@@ -14,7 +14,9 @@ use rustc_hash::FxHashMap;
 use url::Url;
 
 use crate::dependency_provider::UvDependencyProvider;
-use distribution_types::{Dist, DistributionMetadata, LocalEditable, Name, PackageId, Verbatim};
+use distribution_types::{
+    Dist, DistributionMetadata, LocalEditable, Name, PackageId, ResolvedDist, Verbatim,
+};
 use once_map::OnceMap;
 use pep440_rs::Version;
 use pypi_types::{Hashes, Metadata23};
@@ -45,7 +47,7 @@ pub enum AnnotationStyle {
 #[derive(Debug)]
 pub struct ResolutionGraph {
     /// The underlying graph.
-    petgraph: petgraph::graph::Graph<Dist, Range<Version>, petgraph::Directed>,
+    petgraph: petgraph::graph::Graph<ResolvedDist, Range<Version>, petgraph::Directed>,
     /// The metadata for every distribution in this resolution.
     hashes: FxHashMap<PackageName, Vec<Hashes>>,
     /// The enabled extras for every distribution in this resolution.
@@ -85,7 +87,10 @@ impl ResolutionGraph {
                 PubGrubPackage::Package(package_name, None, None) => {
                     // Create the distribution.
                     let pinned_package = if let Some((editable, _)) = editables.get(package_name) {
-                        Dist::from_editable(package_name.clone(), editable.clone())?
+                        ResolvedDist::Installable(Dist::from_editable(
+                            package_name.clone(),
+                            editable.clone(),
+                        )?)
                     } else {
                         pins.get(package_name, version)
                             .expect("Every package should be pinned")
@@ -137,7 +142,7 @@ impl ResolutionGraph {
                     }
 
                     // Add the distribution to the graph.
-                    let index = petgraph.add_node(pinned_package);
+                    let index = petgraph.add_node(ResolvedDist::Installable(pinned_package));
                     inverse.insert(package_name, index);
                 }
                 PubGrubPackage::Package(package_name, Some(extra), None) => {
@@ -155,7 +160,7 @@ impl ResolutionGraph {
                                 Dist::from_editable(package_name.clone(), editable.clone())?;
 
                             diagnostics.push(Diagnostic::MissingExtra {
-                                dist: pinned_package,
+                                dist: ResolvedDist::Installable(pinned_package),
                                 extra: extra.clone(),
                             });
                         }
@@ -198,8 +203,10 @@ impl ResolutionGraph {
                                 .or_insert_with(Vec::new)
                                 .push(extra.clone());
                         } else {
-                            let pinned_package =
-                                Dist::from_editable(package_name.clone(), editable.clone())?;
+                            let pinned_package = ResolvedDist::Installable(Dist::from_editable(
+                                package_name.clone(),
+                                editable.clone(),
+                            )?);
 
                             diagnostics.push(Diagnostic::MissingExtra {
                                 dist: pinned_package,
@@ -224,7 +231,10 @@ impl ResolutionGraph {
                                 || url.clone(),
                                 |precise| apply_redirect(url, precise.value()),
                             );
-                            let pinned_package = Dist::from_url(package_name.clone(), url)?;
+                            let pinned_package = ResolvedDist::Installable(Dist::from_url(
+                                package_name.clone(),
+                                url,
+                            )?);
 
                             diagnostics.push(Diagnostic::MissingExtra {
                                 dist: pinned_package,
@@ -313,7 +323,9 @@ impl ResolutionGraph {
     }
 
     /// Return the underlying graph.
-    pub fn petgraph(&self) -> &petgraph::graph::Graph<Dist, Range<Version>, petgraph::Directed> {
+    pub fn petgraph(
+        &self,
+    ) -> &petgraph::graph::Graph<ResolvedDist, Range<Version>, petgraph::Directed> {
         &self.petgraph
     }
 }
@@ -376,7 +388,7 @@ enum Node<'a> {
     /// A node linked to an editable distribution.
     Editable(&'a PackageName, &'a LocalEditable),
     /// A node linked to a non-editable distribution.
-    Distribution(&'a PackageName, &'a Dist, &'a [ExtraName]),
+    Distribution(&'a PackageName, &'a ResolvedDist, &'a [ExtraName]),
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -571,7 +583,7 @@ pub enum Diagnostic {
     MissingExtra {
         /// The distribution that was requested with an non-existent extra. For example,
         /// `black==23.10.0`.
-        dist: Dist,
+        dist: ResolvedDist,
         /// The extra that was requested. For example, `colorama` in `black[colorama]`.
         extra: ExtraName,
     },
