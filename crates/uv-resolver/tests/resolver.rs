@@ -21,7 +21,8 @@ use uv_resolver::{
     Preference, ResolutionGraph, ResolutionMode, Resolver,
 };
 use uv_traits::{
-    BuildContext, BuildIsolation, BuildKind, NoBinary, NoBuild, SetupPyStrategy, SourceBuildTrait,
+    BuildContext, BuildIsolation, BuildKind, EmptyInstalledPackages, NoBinary, NoBuild,
+    SetupPyStrategy, SourceBuildTrait,
 };
 
 // Exclude any packages uploaded after this date.
@@ -124,6 +125,7 @@ async fn resolve(
         find_default_python(&Cache::temp().unwrap()).expect("Expected a python to be installed");
     let interpreter = Interpreter::artificial(real_interpreter.platform().clone(), markers.clone());
     let build_context = DummyContext::new(Cache::temp()?, interpreter.clone());
+    let installed_packages = EmptyInstalledPackages;
     let resolver = Resolver::new(
         manifest,
         options,
@@ -134,6 +136,7 @@ async fn resolve(
         &flat_index,
         &index,
         &build_context,
+        &installed_packages,
     )?;
     Ok(resolver.resolve().await?)
 }

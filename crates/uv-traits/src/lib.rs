@@ -9,7 +9,9 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
-use distribution_types::{CachedDist, DistributionId, IndexLocations, Resolution, SourceDist};
+use distribution_types::{
+    CachedDist, DistributionId, IndexLocations, InstalledDist, Resolution, SourceDist,
+};
 use once_map::OnceMap;
 use pep508_rs::Requirement;
 use uv_cache::Cache;
@@ -371,6 +373,28 @@ impl ConfigSettings {
     /// Convert the settings to a string that can be passed directly to a PEP 517 build backend.
     pub fn escape_for_python(&self) -> String {
         serde_json::to_string(self).expect("Failed to serialize config settings")
+    }
+}
+
+/// A wrapper for [`uv_installer::SitePackages`]
+pub trait InstalledPackagesProvider {
+    fn iter(&self) -> impl Iterator<Item = &InstalledDist>;
+    fn get_packages(&self, name: &PackageName) -> Vec<&InstalledDist>;
+}
+
+/// An [`InstalledPackagesProvider`] with no packages in it.
+pub struct EmptyInstalledPackages;
+
+impl InstalledPackagesProvider for EmptyInstalledPackages {
+    fn get_packages(
+        &self,
+        _name: &pep508_rs::PackageName,
+    ) -> Vec<&distribution_types::InstalledDist> {
+        Vec::new()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &distribution_types::InstalledDist> {
+        std::iter::empty()
     }
 }
 

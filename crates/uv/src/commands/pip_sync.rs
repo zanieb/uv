@@ -165,6 +165,9 @@ pub(crate) async fn pip_sync(
         BuildIsolation::Isolated
     };
 
+    // Determine the set of installed packages.
+    let site_packages = SitePackages::from_executable(&venv)?;
+
     // Prep the build context.
     let build_dispatch = BuildDispatch::new(
         &client,
@@ -201,9 +204,6 @@ pub(crate) async fn pip_sync(
 
         requirements
     };
-
-    // Determine the set of installed packages.
-    let site_packages = SitePackages::from_executable(&venv)?;
 
     // Resolve any editables.
     let resolved_editables = resolve_editables(

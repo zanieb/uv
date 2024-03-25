@@ -21,7 +21,8 @@ use uv_installer::{Downloader, Installer, NoBinary, Plan, Planner, Reinstall, Si
 use uv_interpreter::{Interpreter, PythonEnvironment};
 use uv_resolver::{InMemoryIndex, Manifest, Options, Resolver};
 use uv_traits::{
-    BuildContext, BuildIsolation, BuildKind, ConfigSettings, InFlight, NoBuild, SetupPyStrategy,
+    BuildContext, BuildIsolation, BuildKind, ConfigSettings, EmptyInstalledPackages, InFlight,
+    NoBuild, SetupPyStrategy,
 };
 
 /// The main implementation of [`BuildContext`], used by the CLI, see [`BuildContext`]
@@ -145,6 +146,7 @@ impl<'a> BuildContext for BuildDispatch<'a> {
             self.flat_index,
             self.index,
             self,
+            &EmptyInstalledPackages,
         )?;
         let graph = resolver.resolve().await.with_context(|| {
             format!(
