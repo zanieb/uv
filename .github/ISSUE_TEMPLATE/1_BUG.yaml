@@ -1,0 +1,21 @@
+name: Report a bug
+description: Errors, regressions, and unexpected behaviors
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please consider including the following information:
+
+        * A [minimal example](https://stackoverflow.com/help/mcve) that reproduces the bug.
+        * The command you invoked (e.g., `uv pip sync requirements.txt`), including logs with the `--verbose` flag.
+        * Your platform and operating system.
+        * Your uv version (`uv --version`).
+
+        If you need help, review examples of [well written bug reports](https://github.com/astral-sh/uv/issues?q=is%3Aissue+label%3A%22great+writeup%22+label%3Abug). If you are reporting a difference from `pip`, please check that it is not covered in our [compatibility guide](https://github.com/astral-sh/uv/blob/main/PIP_COMPATIBILITY.md) and that a similar issue does not [already exist](https://github.com/astral-sh/uv/issues?q=is%3Aissue).
+        <br />
+
+  - type: textarea
+    attributes:
+      label: Bug report
+    validations:
+      required: true
