@@ -38,10 +38,10 @@ steps:
     echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
   displayName: "Install Rust toolchain"
 
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- script: |
+    curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+  displayName: "Install cargo-nextest"
 
 - script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+    cargo nextest run --no-default-features --features python,pypi,git --workspace --status-level skip --failure-output immediate-final --no-fail-fast -j 12 --final-status-level slow
+  displayName: 'Run tests'
