@@ -10,6 +10,27 @@ pool:
   vmImage: windows-latest
 
 steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.8"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.9"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.10"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.11"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.12"
+    architecture: "x64"
+
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
