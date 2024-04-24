@@ -32,7 +32,7 @@ steps:
     architecture: "x64"
 
 - script: |
-    curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C ~/.cargo/bin
+    curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C %HOMEDRIVE%%HOMEPATH%\.cargo\bin
   displayName: "Install cargo-nextest"
 
 - script: |
