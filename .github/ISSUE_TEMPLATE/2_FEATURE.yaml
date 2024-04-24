@@ -1,0 +1,21 @@
+name: Request a feature
+description: A new feature or change in behavior
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to help improve uv! Please consider including the following information:
+
+        * The existing behavior, with steps to reproduce it.
+        * The proposed behavior.
+        * Your platform and operating system.
+        * Your uv version (`uv --version`).
+
+        If you need help, review examples of [well written issues](https://github.com/astral-sh/uv/issues?q=is%3Aissue+label%3A%22great+writeup%22). Please check that a similar issue does not [already exist](https://github.com/astral-sh/uv/issues?q=is%3Aissue).
+        <br />
+
+  - type: textarea
+    attributes:
+      label: Requested change
+    validations:
+      required: true

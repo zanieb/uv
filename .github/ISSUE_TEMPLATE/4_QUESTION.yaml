@@ -1,0 +1,21 @@
+name: Ask a question
+description: Help using uv or questions about the project
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for using uv! Please consider including the following information:
+
+        * The steps required to reproduce behaviors related to your question.
+        * Your platform and operating system.
+        * Your uv version (`uv --version`).
+
+        If you are asking about a difference from `pip`, please check that it is not covered in our [compatibility guide](https://github.com/astral-sh/uv/blob/main/PIP_COMPATIBILITY.md) and that a similar issue does not [already exist](https://github.com/astral-sh/uv/issues?q=is%3Aissue).
+        <br />
+
+  - type: textarea
+    attributes:
+      label: Question
+    validations:
+      required: true

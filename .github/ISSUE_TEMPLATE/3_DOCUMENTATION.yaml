@@ -1,0 +1,9 @@
+name: Propose a documentation change
+description: Edits, enhancements, or fixes to the documentation
+labels: ["documentation"]
+body:
+  - type: textarea
+    attributes:
+      label: Documentation change
+    validations:
+      required: true

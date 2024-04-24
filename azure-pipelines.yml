@@ -1,0 +1,51 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: windows-latest
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.8"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.9"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.10"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.11"
+    architecture: "x64"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: "3.12"
+    architecture: "x64"
+- task: Cache@2
+  inputs:
+    key: '"cargo" | "$(Agent.OS)" | Cargo.lock'
+    path: $(Build.SourcesDirectory)\target
+  displayName: cache cargo build
+
+- task: Cache@2
+  inputs:
+    key: '"cargo-registry" | "$(Agent.OS)" | Cargo.lock'
+    path: $(UserProfile)\.cargo\registry
+  displayName: cache cargo registry
+
+- script: |
+    curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C %HOMEDRIVE%%HOMEPATH%\.cargo\bin
+  displayName: "Install cargo-nextest"
+
+- script: |
+    cargo nextest run --no-default-features --features python,pypi,git --workspace --status-level skip --failure-output immediate-final --no-fail-fast -j 12 --final-status-level slow
+  displayName: 'Run tests'
