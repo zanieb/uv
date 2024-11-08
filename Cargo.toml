@@ -16,7 +16,7 @@ edition = "2021"
 rust-version = "1.81"
 homepage = "https://pypi.org/project/uv/"
 documentation = "https://pypi.org/project/uv/"
-repository = "https://github.com/astral-sh/uv"
+repository = "https://github.com/zanieb/uv"
 authors = ["uv"]
 license = "MIT OR Apache-2.0"
 
@@ -282,9 +282,9 @@ strip = "debuginfo"
 [profile.dist]
 inherits = "release"
 
-# Config for 'cargo dist'
+# Config for 'dist'
 [workspace.metadata.dist]
-# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.25.1"
 # CI backends to support
 ci = "github"
@@ -302,35 +302,31 @@ targets = [
   "arm-unknown-linux-musleabihf",
   "armv7-unknown-linux-gnueabihf",
   "armv7-unknown-linux-musleabihf",
-  "i686-pc-windows-msvc",
-  "i686-unknown-linux-gnu",
-  "i686-unknown-linux-musl",
+  "x86_64-apple-darwin",
   "powerpc64-unknown-linux-gnu",
   "powerpc64le-unknown-linux-gnu",
   "s390x-unknown-linux-gnu",
-  "x86_64-apple-darwin",
-  "x86_64-pc-windows-msvc",
   "x86_64-unknown-linux-gnu",
   "x86_64-unknown-linux-musl",
+  "x86_64-pc-windows-msvc",
+  "i686-unknown-linux-gnu",
+  "i686-unknown-linux-musl",
+  "i686-pc-windows-msvc"
 ]
 # Whether to auto-include files like READMEs, LICENSEs, and CHANGELOGs (default true)
 auto-includes = false
-# Whether cargo-dist should create a Github Release or use an existing draft
+# Whether dist should create a Github Release or use an existing draft
 create-release = true
 # Which actions to run on pull requests
 pr-run-mode = "skip"
 # Whether CI should trigger releases with dispatches instead of tag pushes
 dispatch-releases = true
-# Which phase cargo-dist should use to create the GitHub release
+# Which phase dist should use to create the GitHub release
 github-release = "announce"
 # Whether CI should include auto-generated code to build local artifacts
 build-local-artifacts = false
 # Local artifacts jobs to run in CI
 local-artifacts-jobs = ["./build-binaries", "./build-docker"]
-# Publish jobs to run in CI
-publish-jobs = ["./publish-pypi"]
-# Post-announce jobs to run in CI
-post-announce-jobs = ["./publish-docs"]
 # Custom permissions for GitHub Jobs
 github-custom-job-permissions = { "build-docker" = { packages = "write", contents = "read" } }
 # Whether to install an updater program
