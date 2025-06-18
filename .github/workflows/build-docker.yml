@@ -73,8 +73,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # for Depot OIDC
-      packages: write # for GHCR
+      id-token: write # for Depot OIDC and GHCR signing
+      packages: write # for GHCR image pushes
+      attestations: write # for GHCR attestations
     environment:
       name: release
     outputs:
@@ -153,9 +154,9 @@ jobs:
       - docker-publish-base
     if: ${{ needs.docker-plan.outputs.push == 'true' }}
     permissions:
-      packages: write
-      attestations: write # needed to push image attestations to the Github attestation store
-      id-token: write # needed for signing the images with GitHub OIDC Token
+      id-token: write # for Depot OIDC and GHCR signing
+      packages: write # for GHCR image pushes
+      attestations: write # for GHCR attestations
     strategy:
       fail-fast: false
       matrix:
