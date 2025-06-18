@@ -140,7 +140,7 @@ jobs:
         if: ${{ needs.docker-plan.outputs.push == 'true' }}
         uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
         with:
-          subject-name: ${{ env.UV_BASE_IMG }}
+          subject-name: ${{ env.UV_GHCR_IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
 
   docker-publish-extra:
