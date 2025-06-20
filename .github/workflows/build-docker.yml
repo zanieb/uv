@@ -295,8 +295,8 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install oras
-        run: ./scripts/install-oras.sh
+      - name: Install crane
+        run: ./scripts/install-crane.sh
 
       - name: Add annotations to images
         env:
@@ -311,6 +311,9 @@ jobs:
         run: |
           set -x
           readarray -t lines <<< "$LABELS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
-          oras attach --artifact-type application/vnd.oci.image.manifest.v1+json \
-            "${annotations[@]}" \
-            ${IMAGE}@${DIGEST}
+          for tag in $TAGS; do
+            crane mutate \
+              "${annotations[@]}" \
+              -t "${tag}" \
+              "${IMAGE}@${DIGEST}"
+          done
