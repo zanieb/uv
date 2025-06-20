@@ -80,7 +80,7 @@ jobs:
       name: release
     outputs:
       image-tags: ${{ steps.meta.outputs.tags }}
-      image-labels: ${{ steps.meta.outputs.labels }}
+      image-annotations: ${{ steps.meta.outputs.annotations }}
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -303,14 +303,14 @@ jobs:
           IMAGE: ${{ env.UV_GHCR_IMAGE }}
           DIGEST: ${{ needs.docker-publish-base.outputs.image-digest }}
           TAGS: ${{ needs.docker-publish-base.outputs.image-tags }}
-          LABELS: ${{ needs.docker-publish-base.outputs.image-labels }}
+          ANNOTATIONS: ${{ needs.docker-publish-base.outputs.image-annotations }}
         # The readarray part is used to make sure the quoting and special characters are preserved on expansion (e.g. spaces)
         # The jq command expands the docker/metadata json "tags" array entry to `-t tag1 -t tag2 ...` for each tag in the array
         # The printf will expand the base image with the `<UV_BASE_IMG>@sha256:<sha256> ...` for each sha256 in the directory
         # The final command becomes `docker buildx imagetools create -t tag1 -t tag2 ... <UV_BASE_IMG>@sha256:<sha256_1> <UV_BASE_IMG>@sha256:<sha256_2> ...`
         run: |
           set -x
-          readarray -t lines <<< "$LABELS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
+          readarray -t lines <<< "$ANNOTATIONS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
           for tag in $TAGS; do
             docker buildx imagetools create \
               "${annotations[@]}" \
