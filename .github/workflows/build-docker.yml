@@ -260,7 +260,8 @@ jobs:
 
       - name: Build and push
         id: build-and-push
-        uses: depot/build-push-action@636daae76684e38c301daa0c5eca1c095b24e780 # v1.14.0
+        # https://github.com/zanieb/build-push-action/tree/zb/annotations
+        uses: zanieb/build-push-action@zb/annotations
         with:
           context: .
           project: 7hd4vdzmw5 # astral-sh/uv
@@ -271,51 +272,12 @@ jobs:
           # TODO(zanieb): Annotations are not supported by Depot yet and are ignored
           annotations: ${{ steps.meta.outputs.annotations }}
 
-      # Push annotations manually.
-      # See `docker-annotate-base` for details.
-      - name: Add annotations to images
-        env:
-          IMAGES: "${{ env.UV_GHCR_IMAGE }} ${{ env.UV_DOCKERHUB_IMAGE }}"
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-          TAGS: ${{ steps.meta.outputs.tags }}
-          ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
-        run: |
-          set -x
-          readarray -t lines <<< "$ANNOTATIONS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
-          for image in $IMAGES; do
-            for tag in $TAGS; do
-              # The tags are fully qualified, so skip the ones that do not match the image
-              if [[ "$tag" != "${image}"* ]]; then
-                continue
-              fi
-              docker buildx imagetools create \
-                "${annotations[@]}" \
-                -t "${tag}" \
-                "${image}@${DIGEST}"
-            done
-          done
-
-      # See `docker-annotate-base` for details.
-      - name: Export manifest digest
-        id: manifest-digest
-        env:
-          IMAGE: ${{ env.UV_GHCR_IMAGE }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          digest="$(
-            docker buildx imagetools inspect \
-              "${IMAGE}:${VERSION}" \
-              --format '{{json .Manifest}}' \
-            | jq -r '.digest'
-          )"
-          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
-
       # See `docker-annotate-base` for details.
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ${{ env.UV_GHCR_IMAGE }}
-          subject-digest: ${{ steps.manifest-digest.outputs.digest }}
+          subject-digest: ${{ steps.build-and-push.outputs.digest }}
 
   # Annotate the base image
   docker-annotate-base:
