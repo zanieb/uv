@@ -268,15 +268,56 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # TODO(zanieb): Annotations are not supported by Depot yet and are ignored
           annotations: ${{ steps.meta.outputs.annotations }}
 
+      # Push annotations manually.
+      # See `docker-annotate-base` for details.
+      - name: Add annotations to images
+        env:
+          IMAGES: "${{ env.UV_GHCR_IMAGE }} ${{ env.UV_DOCKERHUB_IMAGE }}"
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
+        run: |
+          set -x
+          readarray -t lines <<< "$ANNOTATIONS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
+          for image in $IMAGES; do
+            for tag in $TAGS; do
+              # The tags are fully qualified, so skip the ones that do not match the image
+              if [[ "$tag" != "${image}"* ]]; then
+                continue
+              fi
+              docker buildx imagetools create \
+                "${annotations[@]}" \
+                -t "${tag}" \
+                "${image}@${DIGEST}"
+            done
+          done
+
+      # See `docker-annotate-base` for details.
+      - name: Export manifest digest
+        id: manifest-digest
+        env:
+          IMAGE: ${{ env.UV_GHCR_IMAGE }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE}:${VERSION}" \
+              --format '{{json .Manifest}}' \
+            | jq -r '.digest'
+          )"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      # See `docker-annotate-base` for details.
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ${{ env.UV_GHCR_IMAGE }}
-          subject-digest: ${{ steps.build-and-push.outputs.digest }}
+          subject-digest: ${{ steps.manifest-digest.outputs.digest }}
 
-  # Annotate the base image, to ensure it's shown as the newest on the registry UI
+  # Annotate the base image
   docker-annotate-base:
     name: annotate uv
     runs-on: ubuntu-latest
@@ -298,6 +339,11 @@ jobs:
           username: astral
           password: ${{ secrets.DOCKERHUB_TOKEN_RW }}
 
+      # Depot doesn't support annotating images, so we need to do so manually
+      # afterwards. Mutating the manifest is desirable regardless, because we
+      # want to bump the base image to appear at the top of the list on GHCR.
+      # However, once annotation support is added to Depot, this step can be
+      # minimized to just touch the GHCR manifest.
       - name: Add annotations to images
         env:
           IMAGES: "${{ env.UV_GHCR_IMAGE }} ${{ env.UV_DOCKERHUB_IMAGE }}"
@@ -324,9 +370,11 @@ jobs:
             done
           done
 
-      - name: Share manifest digest
+      # Now that we've modified the manifest, we need to attest it again.
+      # Note we only generate an attestation for GHCR.
+      - name: Export manifest digest
         id: manifest-digest
-        env: 
+        env:
           IMAGE: ${{ env.UV_GHCR_IMAGE }}
           VERSION: ${{ needs.docker-publish-base.outputs.image-version }}
         # To sign the manifest, we need it's digest. Unfortunately "docker
@@ -352,4 +400,3 @@ jobs:
           subject-name: ${{ env.UV_GHCR_IMAGE }}
           subject-digest: ${{ steps.manifest-digest.outputs.digest }}
           # push-to-registry is explicitly not enabled to maintain full control over the top image
-
