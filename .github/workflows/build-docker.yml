@@ -82,6 +82,7 @@ jobs:
       image-tags: ${{ steps.meta.outputs.tags }}
       image-annotations: ${{ steps.meta.outputs.annotations }}
       image-digest: ${{ steps.build.outputs.digest }}
+      image-version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -275,9 +276,9 @@ jobs:
           subject-name: ${{ env.UV_GHCR_IMAGE }}
           subject-digest: ${{ steps.build-and-push.outputs.digest }}
 
-  # Re-tag the base image, to ensure it's shown as the newest on the registry UI
-  docker-retag-base:
-    name: retag uv
+  # Annotate the base image, to ensure it's shown as the newest on the registry UI
+  docker-annotate-base:
+    name: annotate uv
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -286,22 +287,20 @@ jobs:
       - docker-publish-base
     if: ${{ needs.docker-plan.outputs.push == 'true' }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          submodules: recursive
-
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Install regctl
-      #   run: ./scripts/install-regctl.sh
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: astral
+          password: ${{ secrets.DOCKERHUB_TOKEN_RW }}
 
       - name: Add annotations to images
         env:
-          IMAGE: ${{ env.UV_GHCR_IMAGE }}
+          IMAGES: "${{ env.UV_GHCR_IMAGE }} ${{ env.UV_DOCKERHUB_IMAGE }}"
           DIGEST: ${{ needs.docker-publish-base.outputs.image-digest }}
           TAGS: ${{ needs.docker-publish-base.outputs.image-tags }}
           ANNOTATIONS: ${{ needs.docker-publish-base.outputs.image-annotations }}
@@ -312,9 +311,45 @@ jobs:
         run: |
           set -x
           readarray -t lines <<< "$ANNOTATIONS"; annotations=(); for line in "${lines[@]}"; do annotations+=(--annotation "$line"); done
-          for tag in $TAGS; do
-            docker buildx imagetools create \
-              "${annotations[@]}" \
-              -t "${tag}" \
-              "${IMAGE}@${DIGEST}"
+          for image in $IMAGES; do
+            for tag in $TAGS; do
+              # The tags are fully qualified, so skip the ones that do not match the image
+              if [[ "$tag" != "${image}"* ]]; then
+                continue
+              fi
+              docker buildx imagetools create \
+                "${annotations[@]}" \
+                -t "${tag}" \
+                "${image}@${DIGEST}"
+            done
           done
+
+      - name: Share manifest digest
+        id: manifest-digest
+        env: 
+          IMAGE: ${{ env.UV_GHCR_IMAGE }}
+          VERSION: ${{ needs.docker-publish-base.outputs.image-version }}
+        # To sign the manifest, we need it's digest. Unfortunately "docker
+        # buildx imagetools create" does not (yet) have a clean way of sharing
+        # the digest of the manifest it creates (see docker/buildx#2407), so
+        # we use a separate command to retrieve it.
+        # imagetools inspect [TAG] --format '{{json .Manifest}}' gives us
+        # the machine readable JSON description of the manifest, and the
+        # jq command extracts the digest from this. The digest is then
+        # sent to the Github step output file for sharing with other steps.
+        run: |
+          digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE}:${VERSION}" \
+              --format '{{json .Manifest}}' \
+            | jq -r '.digest'
+          )"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
+        with:
+          subject-name: ${{ env.UV_GHCR_IMAGE }}
+          subject-digest: ${{ steps.manifest-digest.outputs.digest }}
+          # push-to-registry is explicitly not enabled to maintain full control over the top image
+
