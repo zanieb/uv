@@ -295,8 +295,8 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install regctl
-        run: ./scripts/install-regctl.sh
+      # - name: Install regctl
+      #   run: ./scripts/install-regctl.sh
 
       - name: Add annotations to images
         env:
