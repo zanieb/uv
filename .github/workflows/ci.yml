@@ -31,7 +31,7 @@ jobs:
       test-macos: ${{ steps.plan.outputs.test_macos }}
       build-docker: ${{ steps.plan.outputs.build_docker }}
       push-docker: ${{ steps.plan.outputs.push_docker }}
-      is-fork: ${{ steps.plan.outputs.is_fork }}
+      is-fork: ${{ steps.runners.outputs.is_fork }}
       is-external-pr: ${{ steps.plan.outputs.is_external_pr }}
       runner-ubuntu-x86_64-1: ${{ steps.runners.outputs.runner_ubuntu_x86_64_1 }}
       runner-ubuntu-x86_64-4-github: ${{ steps.runners.outputs.runner_ubuntu_x86_64_4_github }}
@@ -50,6 +50,7 @@ jobs:
       runner-windows-x86_64-8: ${{ steps.runners.outputs.runner_windows_x86_64_8 }}
       runner-windows-aarch64-8: ${{ steps.runners.outputs.runner_windows_aarch64_8 }}
       runner-ubuntu-22-04-aarch64-4: ${{ steps.runners.outputs.runner_ubuntu_22_04_aarch64_4 }}
+      runner-benchmarks-walltime: ${{ steps.runners.outputs.runner_benchmarks_walltime }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -159,37 +160,12 @@ jobs:
             out push_docker             "$push_docker"
           } >> "$GITHUB_OUTPUT"
 
-          # Fork detection
-          if [[ "$GH_REPOSITORY" == "astral-sh/uv" ]]; then
-            echo "is_fork=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_fork=true" >> "$GITHUB_OUTPUT"
-          fi
           echo "is_external_pr=$IS_EXTERNAL_PR" >> "$GITHUB_OUTPUT"
 
       - name: "Determine runners"
         id: runners
         shell: bash
-        env:
-          GH_REPOSITORY: ${{ github.repository }}
-        run: |
-          if [[ "$GH_REPOSITORY" == "astral-sh/uv" ]]; then
-            # Use the first runner for each role
-            jq -r '
-              to_entries[] |
-              .key as $role |
-              .value[0].label as $label |
-              "runner_\($role | gsub("-";"_"))=\($label)"
-            ' .github/runners.json >> "$GITHUB_OUTPUT"
-          else
-            # Use the first free runner for each role
-            jq -r '
-              to_entries[] |
-              .key as $role |
-              (.value | map(select(.free)) | .[0].label) as $label |
-              "runner_\($role | gsub("-";"_"))=\($label)"
-            ' .github/runners.json >> "$GITHUB_OUTPUT"
-          fi
+        run: python scripts/resolve-ci-runners.py >> "$GITHUB_OUTPUT"
 
   check-fmt:
     uses: ./.github/workflows/check-fmt.yml
@@ -347,6 +323,7 @@ jobs:
       save-rust-cache: ${{ needs.plan.outputs.save-rust-cache }}
       is-fork: ${{ needs.plan.outputs.is-fork == 'true' }}
       runner-ubuntu-22-04-aarch64-4: ${{ needs.plan.outputs.runner-ubuntu-22-04-aarch64-4 }}
+      runner-benchmarks-walltime: ${{ needs.plan.outputs.runner-benchmarks-walltime }}
 
   # This job cannot be moved into a reusable workflow because it includes coverage for uploading
   # attestations and PyPI does not support attestations in reusable workflows.

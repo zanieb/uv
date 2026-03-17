@@ -62,7 +62,7 @@ jobs:
       runner-macos-aarch64-8: ${{ steps.runners.outputs.runner_macos_aarch64_8 }}
       runner-windows-x86_64-8: ${{ steps.runners.outputs.runner_windows_x86_64_8 }}
       runner-windows-aarch64-8: ${{ steps.runners.outputs.runner_windows_aarch64_8 }}
-      is-fork: ${{ steps.fork-detect.outputs.is_fork }}
+      is-fork: ${{ steps.runners.outputs.is_fork }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -73,22 +73,7 @@ jobs:
       - name: "Determine runners"
         id: runners
         shell: bash
-        run: |
-          jq -r '
-            to_entries[] |
-            .key as $role |
-            .value[0].label as $label |
-            "runner_\($role | gsub("-";"_"))=\($label)"
-          ' .github/runners.json >> "$GITHUB_OUTPUT"
-      - name: "Detect fork"
-        id: fork-detect
-        shell: bash
-        run: |
-          if [[ "${{ github.repository }}" == "astral-sh/uv" ]]; then
-            echo "is_fork=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_fork=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python scripts/resolve-ci-runners.py >> "$GITHUB_OUTPUT"
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0

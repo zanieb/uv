@@ -48,5 +48,6 @@
   "windows-aarch64-8": [
     { "label": "github-windows-11-aarch64-8", "free": false },
     { "label": "windows-11-arm", "free": true }
-  ]
+  ],
+  "benchmarks-walltime": [{ "label": "codspeed-macro", "free": false }]
 }
