@@ -213,7 +213,7 @@ fn resolve_python_preference(
 }
 
 /// Resolve the preview setting from CLI, environment, and workspace config.
-fn resolve_preview(
+pub(crate) fn resolve_preview(
     args: &GlobalArgs,
     workspace: Option<&FilesystemOptions>,
     environment: &EnvironmentOptions,
@@ -1092,6 +1092,7 @@ pub(crate) struct ToolListSettings {
     pub(crate) show_with: bool,
     pub(crate) show_extras: bool,
     pub(crate) show_python: bool,
+    pub(crate) outdated: bool,
 }
 
 impl ToolListSettings {
@@ -1104,6 +1105,8 @@ impl ToolListSettings {
             show_with,
             show_extras,
             show_python,
+            outdated,
+            no_outdated,
             python_preference: _,
             no_python_downloads: _,
         } = args;
@@ -1114,6 +1117,7 @@ impl ToolListSettings {
             show_with,
             show_extras,
             show_python,
+            outdated: flag(outdated, no_outdated, "outdated").unwrap_or(false),
         }
     }
 }
